@@ -1,0 +1,10 @@
+{
+  "name": "agroin-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Demo con datos ficticios: Claude + SAP/SOI simulados sobre Supabase, servida por Vercel. Sin dependencias.",
+  "scripts": {
+    "dev": "echo 'Usar: vercel dev (con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY)'"
+  }
+}
