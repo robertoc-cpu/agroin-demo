@@ -483,7 +483,6 @@ const VISTAS = [
   { id: 'comercial', t: 'Ventas y logística', load: ['comercial'], f: ([d]) => vComercial(d) },
   { id: 'campo', t: 'Mantenimiento y campo', load: ['campo'], f: ([d]) => vCampo(d) },
   { id: 'claude', t: 'Alertas y minutas', load: ['claude'], f: ([c]) => vClaude(c) },
-  { id: 'guia', t: 'Pregúntale a Claude', load: [], f: () => vGuia() },
 ];
 const store = (() => { try { return window.sessionStorage; } catch { return null; } })();
 let code = '';
