@@ -28,6 +28,9 @@ La llave de servidor solo la usa `api/data.js`; el navegador nunca la recibe. La
 
 - `supabase/migrations/001_esquemas.sql`: tablas de `sap`, `soi` y `claude`.
 - `supabase/migrations/002_funciones_lectura_app.sql`: funciones de lectura de la app.
+- `supabase/migrations/003_iglu.sql` y `004_funciones_iglu_alertas.sql`: iglú, alertas accionables y canal WhatsApp.
+
+Los avisos (correo y WhatsApp) solo se registran en `claude.notificacion`; el envío real de WhatsApp requiere la API de WhatsApp Business.
 
 Los datos simulados ya están cargados en el proyecto `agroin-demo` (mayo 2025 a 25-oct-2026; "hoy" de la demo es 26-oct-2026). Historia sembrada: productor con calidad a la baja, cámara de frío con falla progresiva, paros recurrentes de lunes en Línea 2, cliente con cartera vencida, retrasos en un cruce fronterizo, alza de precio del queso y certificaciones por vencer.
 

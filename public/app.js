@@ -91,6 +91,16 @@ const META = {
     calc: 'Suma de m³ de marzo a septiembre ÷ hectáreas de la parcela.', q: '¿Qué parcela usa más agua por hectárea y cuánto bombeo eléctrico representa?' },
   queso: { sis: 'SAP', sistema: 'SAP · Compras', per: 'Mar–oct 2026', tablas: [['sap.ekpo', 'Posiciones de compra con precio y fechas de entrega'], ['sap.ekko', 'Pedidos de compra']],
     calc: 'Precio unitario promedio del material R-002 (queso) y retraso = entrega real − entrega prometida.', q: '¿Cómo ha cambiado el precio y la puntualidad de entrega del queso?' },
+  alertaAcc: { sis: 'CLAUDE', sistema: 'Capa de Claude', per: 'Estado al 26-oct-2026', tablas: [['claude.alerta', 'Alerta con causa probable, recomendación e impacto'], ['claude.accion', 'Acciones con responsable y fecha']],
+    calc: 'Claude cruza SAP y SOI, detecta la desviación y propone una causa probable y una recomendación basadas en los datos. La causa es una hipótesis que la persona responsable valida.', q: 'Dame las alertas abiertas con su causa probable y qué recomiendas hacer primero.' },
+  igluKpi: { sis: 'SOI', sistema: 'SOI · Iglú (administración de almacén)', per: 'Existencias al 26-oct-2026', tablas: [['soi.tarima', 'Una fila por tarima: lote, cajas y posición'], ['soi.iglu_posicion', 'Mapa de posiciones: cámara, pasillo, columna y nivel'], ['soi.camara', 'Capacidad en tarimas']],
+    calc: 'Tarimas con posición asignada ÷ capacidad de las cámaras CF-03 y CF-04. Cada posición guarda una tarima (hasta 60 cajas).', q: '¿Cuántas tarimas hay en el iglú, qué ocupación tiene cada cámara y qué producto es?' },
+  igluMapa: { sis: 'SOI', sistema: 'SOI · Iglú', per: 'Existencias al 26-oct-2026', tablas: [['soi.iglu_posicion', 'Pasillo, columna y nivel'], ['soi.tarima', 'Tarimas por posición'], ['soi.lote', 'Fecha de caducidad del lote']],
+    calc: 'Cada cuadro es una columna de un pasillo con 5 niveles; el color indica cuántos niveles están ocupados. En rojo, columnas con tarimas que caducan en menos de 30 días.', q: '¿Dónde están ubicados los lotes que caducan este mes?' },
+  igluProd: { sis: 'MIX', sistema: 'SOI + SAP · Iglú y materiales', per: 'Existencias al 26-oct-2026', tablas: [['soi.tarima', 'Cajas por tarima'], ['sap.mara', 'Descripción del producto']],
+    calc: 'Suma de cajas por producto terminado de todas las tarimas del iglú.', q: '¿Cuántas cajas tenemos por producto en el iglú?' },
+  igluVencer: { sis: 'MIX', sistema: 'SOI + SAP · Iglú, lotes y caducidad', per: 'Caducan en menos de 30 días', tablas: [['soi.tarima', 'Tarima y posición'], ['soi.lote', 'fecha_caducidad'], ['sap.mara', 'Producto']],
+    calc: 'Tarimas cuyo lote caduca antes de 30 días contados desde hoy (26-oct-2026), ordenadas por fecha y ubicación.', q: '¿Qué lotes del iglú van a caducar en las próximas 4 semanas y dónde están ubicados?' },
   alerta: { sis: 'CLAUDE', sistema: 'Capa de Claude', per: 'Registrada el 26-oct-2026', tablas: [['claude.alerta', 'Alerta'], ['claude.accion', 'Acciones con responsable'], ['claude.notificacion', 'Aviso redactado para los responsables']],
     calc: 'Claude evalúa las reglas de claude.regla_alerta sobre SAP y SOI; al detectar una desviación registra la alerta, asigna acciones y redacta el aviso. En la demo el correo se guarda, no se envía.', q: 'Revisa los datos y genera las alertas críticas de hoy con responsable, acción y fecha compromiso.' },
   minuta: { sis: 'CLAUDE', sistema: 'Capa de Claude', per: 'Semana 43 · 26-oct-2026', tablas: [['claude.minuta', 'Minutas'], ['claude.alerta', 'Alertas de la semana'], ['claude.accion', 'Acciones y pendientes']],
@@ -250,6 +260,19 @@ const table = (cols, rows) =>
     h('tbody', {}, rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.n ? 'n' : '' }, c.f(r))))))));
 const head = (t, lede) => [h('h2', {}, t), h('p', { class: 'lede' }, lede)];
 
+
+// ---------- alertas accionables ----------
+const wa = (n) => h('div', { class: 'wa' },
+  h('div', { class: 'wa-to' }, `WhatsApp · ${n.destinatario}`),
+  h('div', { class: 'wa-bubble' }, n.cuerpo),
+  h('div', { class: 'wa-foot' }, `${fechaHora(n.ts)} ✓✓`));
+const accionable = (a, acc, extra = []) => h('div', { class: 'acc' },
+  a.impacto && h('p', {}, h('strong', {}, 'Impacto: '), a.impacto),
+  a.causa_probable && h('p', {}, h('strong', {}, 'Causa probable: '), a.causa_probable),
+  a.recomendacion && h('p', { class: 'reco' }, h('strong', {}, 'Recomendación: '), a.recomendacion),
+  acc.length > 0 && h('p', { class: 'sub' }, 'Responsables: ', uniq(acc.map((x) => x.responsable)).join(', ')),
+  extra);
+
 // ---------- vistas ----------
 function vDireccion([d, c]) {
   const k = d.kpis;
@@ -266,6 +289,15 @@ function vDireccion([d, c]) {
       kpi('Cartera vencida', usdK(k.cartera_vencida_usd), 'USD sin cobrar · al 26-oct', 'cartera', 'warn'),
       kpi('Acciones vencidas', k.acciones_vencidas, 'Compromisos fuera de fecha', 'accionesVenc', k.acciones_vencidas ? 'bad' : '')),
     crit.length > 0 && h('div', { class: 'callout' }, h('strong', {}, 'Requieren decisión hoy: '), crit.map((a) => a.titulo).join(' · ')),
+    h('h2', { style: 'margin-top:6px' }, 'Alertas accionables'),
+    h('p', { class: 'lede' }, 'Cada alerta trae su impacto, la causa probable que detecta Claude y qué recomienda hacer primero. Los responsables reciben aviso por correo y WhatsApp.'),
+    h('div', { class: 'grid two', style: 'margin-bottom:14px' }, c.alertas.filter((a) => a.estado !== 'Cerrada' && a.severidad === 'Crítica').map((a) => {
+      const acc = c.acciones.filter((x) => x.alerta_id === a.alerta_id);
+      const el = h('article', { class: 'card alert crit' },
+        h('div', { class: 'meta' }, badge(a.severidad, 'crit'), badge(a.estado, tone[a.estado]), a.area),
+        h('h3', {}, a.titulo), accionable(a, acc));
+      return withSource(el, a.titulo, 'alertaAcc', acc.length ? acc : [{ alerta_id: a.alerta_id, area: a.area }]);
+    })),
     h('div', { class: 'grid two' },
       card('Costo por kg terminado', 'MXN por kg, mensual. Sube por queso, merma y energía.', ['costoMes', d.costo_kg_mensual],
         lineChart({ labels: L, series: [{ name: 'MXN/kg', values: d.costo_kg_mensual.map((x) => x.mxn_kg), color: COLORS[0] }], label: 'Costo por kg mensual' })),
@@ -374,16 +406,17 @@ function vClaude(c) {
   const orden = { Abierta: 0, 'En atención': 1, Cerrada: 2 };
   const alertas = [...c.alertas].sort((a, b) => orden[a.estado] - orden[b.estado] || (a.severidad === 'Crítica' ? -1 : 1));
   return [
-    head('Alertas, acciones y minutas', 'Claude vigila los datos, avisa a los responsables, da seguimiento a los compromisos y redacta las minutas. En la demo los correos se registran, no se envían.'),
+    head('Alertas, acciones y minutas', 'Claude vigila los datos, avisa a los responsables, da seguimiento a los compromisos y redacta las minutas. Cada aviso sale por correo y por WhatsApp. En la demo los avisos se registran, no se envían.'),
     h('div', { class: 'grid' }, alertas.map((a) => {
       const acc = c.acciones.filter((x) => x.alerta_id === a.alerta_id);
-      const n = c.notificaciones.find((x) => x.alerta_id === a.alerta_id);
+      const ns = c.notificaciones.filter((x) => x.alerta_id === a.alerta_id);
       const el = h('article', { class: `card alert ${a.severidad === 'Crítica' ? 'crit' : a.severidad === 'Media' ? 'med' : ''}` },
         h('div', { class: 'meta' }, badge(a.severidad, tone[a.severidad]), badge(a.estado, tone[a.estado]), a.area, '·', fechaHora(a.ts)),
-        h('h3', {}, a.titulo), h('p', {}, a.detalle),
+        h('h3', {}, a.titulo), h('p', {}, a.detalle), accionable(a, []),
         acc.length > 0 && table([{ t: 'Acción', f: (r) => r.descripcion }, { t: 'Responsable', f: (r) => r.responsable }, { t: 'Compromiso', f: (r) => fecha(r.fecha_compromiso) }, { t: 'Estado', f: (r) => badge(r.estado, tone[r.estado]) }], acc),
-        n && h('details', {}, h('summary', {}, `Notificación a ${n.destinatario.split(',').length} responsable(s)`),
-          h('div', { class: 'mail' }, `Para: ${n.destinatario}\nAsunto: ${n.asunto}\n\n${n.cuerpo}`)));
+        ns.length > 0 && h('div', { class: 'chans' }, ns.map((n) => badge(n.canal === 'whatsapp' ? 'WhatsApp' : 'Correo', n.canal === 'whatsapp' ? 'ok' : 'gray'))),
+        ns.map((n) => h('details', {}, h('summary', {}, n.canal === 'whatsapp' ? `Vista del WhatsApp · ${n.destinatario.split('),').length} destinatario(s)` : `Correo a ${n.destinatario.split(',').length} responsable(s)`),
+          n.canal === 'whatsapp' ? wa(n) : h('div', { class: 'mail' }, `Para: ${n.destinatario}\nAsunto: ${n.asunto}\n\n${n.cuerpo}`))));
       return withSource(el, a.titulo, 'alerta', acc.length ? acc : [{ alerta_id: a.alerta_id, area: a.area, severidad: a.severidad, estado: a.estado }]);
     })),
     h('h2', { style: 'margin-top:22px' }, 'Minutas'),
@@ -393,14 +426,64 @@ function vClaude(c) {
   ];
 }
 
+
+function vIglu(d) {
+  const k = d.kpis;
+  const pct = Math.round((100 * k.tarimas) / k.capacidad);
+  const mapaCam = (cam) => {
+    const pas = uniq(d.mapa.filter((x) => x.camara === cam).map((x) => x.pasillo));
+    return h('div', { class: 'ig' }, pas.map((p) => h('div', { class: 'ig-row' }, h('span', { class: 'ig-p' }, p),
+      d.mapa.filter((x) => x.camara === cam && x.pasillo === p).map((x) =>
+        h('span', { class: `ig-c l${x.ocupadas} ${x.por_vencer ? 'venc' : ''}`, title: `${cam} · pasillo ${p} · columna ${x.columna}: ${x.ocupadas} de 5 niveles${x.por_vencer ? ` · ${x.por_vencer} por vencer` : ''}` })))));
+  };
+  const oc = d.ocupacion;
+  return [
+    head('Iglú · almacén en frío', 'Cada tarima tiene su lote, su cantidad y su posición (cámara, pasillo, columna y nivel). Claude lee esa ubicación y la cruza con caducidad, calidad y pedidos.'),
+    h('div', { class: 'grid kpis' },
+      kpi('Ocupación', pct + ' %', `${nf.format(k.tarimas)} de ${nf.format(k.capacidad)} tarimas`, 'igluKpi', pct > 85 ? 'warn' : ''),
+      kpi('Cajas almacenadas', nf.format(k.cajas), 'Producto terminado', 'igluProd'),
+      kpi('Por vencer', k.por_vencer_30d, 'Tarimas · menos de 30 días', 'igluVencer', k.por_vencer_30d ? 'bad' : ''),
+      kpi('Con más de 90 días', k.antiguas_90d, 'Tarimas · rompen PEPS', 'igluVencer', k.antiguas_90d ? 'warn' : ''),
+      kpi('Retenidas por calidad', k.retenidas, 'Tarimas', 'igluKpi')),
+    k.por_vencer_30d > 0 && h('div', { class: 'callout' }, h('strong', {}, 'Detectado: '), `${k.por_vencer_30d} tarimas caducan en menos de 30 días y están al fondo del pasillo H de CF-04. Mientras tanto CF-03 está al 100%, por lo que CF-04 funciona como bodega de desborde.`),
+    h('div', { class: 'grid two' },
+      ...oc.map((o) => card(`${o.camara} · ${o.nombre}`, `${nf.format(o.tarimas)} de ${nf.format(o.capacidad)} tarimas · ${nf.format(o.cajas)} cajas. Cada cuadro es una columna (5 niveles); más oscuro = más lleno; rojo = caduca pronto.`, ['igluMapa', d.mapa.filter((x) => x.camara === o.camara)], mapaCam(o.camara))),
+      card('Producto en el iglú', 'Cajas de 5 kg por producto terminado.', ['igluProd', d.por_producto],
+        bars(d.por_producto.map((x) => ({ name: x.producto, value: x.cajas, text: `${nf.format(x.cajas)} cajas` })), {})),
+      card('Tarimas por vencer', 'Ordenadas por fecha de caducidad, con su ubicación exacta.', ['igluVencer', d.proximas_a_vencer],
+        table([{ t: 'Posición', f: (r) => r.posicion }, { t: 'Lote', f: (r) => r.lote }, { t: 'Producto', f: (r) => r.producto }, { t: 'Cajas', n: 1, f: (r) => r.cajas }, { t: 'Caduca', f: (r) => badge(fecha(r.caduca), r.dias < 14 ? 'crit' : 'warn') }], d.proximas_a_vencer.slice(0, 10)))),
+  ];
+}
+
+function vGuia() {
+  const msg = `Usa el proyecto de Supabase agroin-demo (id \`dtvipihhkpfggxfndfpc\`). Antes de responder, lee la tabla \`claude.guia\`: ahí está cómo se organizan los datos y cómo debes responder. Hoy es 26 de octubre de 2026. Los datos son ficticios, de la empresa Agroindustria de Aguascalientes (SAP, SOI e iglú). Responde en español, con cifras y qué recomiendas hacer. Puedes registrar alertas, acciones, avisos (correo y WhatsApp) y minutas en el esquema \`claude\`, pero confírmame antes de escribir y no modifiques \`sap\` ni \`soi\`.`;
+  const ej = ['¿Por qué subió el costo por kilo de abril a octubre y qué parte es controlable?', '¿Qué lotes del iglú van a caducar en las próximas 4 semanas y dónde están ubicados?', 'Dame las alertas abiertas con su causa probable y qué recomiendas hacer primero.', '¿Qué clientes tienen pagos atrasados y cuánto es su riesgo contra el límite de crédito?', 'Genera la minuta de la junta semanal de operaciones con acuerdos y pendientes por responsable.', 'Redacta y registra un WhatsApp para los responsables de las alertas críticas de hoy.'];
+  const ta = h('textarea', { readonly: '', rows: '9', 'aria-label': 'Mensaje inicial' }); ta.value = msg;
+  const ok = h('span', { class: 'sub', role: 'status' });
+  const copy = async () => { try { await navigator.clipboard.writeText(msg); } catch { ta.select(); document.execCommand('copy'); } ok.textContent = 'Copiado ✓'; };
+  return [
+    head('Pregúntale a Claude', 'Cada área puede hacer sus propias preguntas sobre estos datos ficticios, o pedir que se cree algo nuevo (una alerta, una minuta, un reporte), en una conversación nueva de Claude conectada a la base de datos de la demo.'),
+    h('div', { class: 'grid two' },
+      card('1 · Abre una conversación nueva de Claude', 'Con el conector de Supabase activo. Pega este mensaje como primer mensaje:', null, ta, h('button', { class: 'btn', onclick: copy }, 'Copiar mensaje'), ' ', ok),
+      card('2 · Preguntas para empezar', 'Una por área; después pueden preguntar lo que quieran.', null, h('ul', { class: 'ej' }, ej.map((e) => h('li', {}, e)))),
+      card('Qué se queda y qué no', null, null, h('ul', { class: 'ej' }, [
+        'Todo lo que pregunten se responde con los datos ficticios de la demo.',
+        'Lo que Claude registre (alertas, minutas, avisos) queda en el esquema claude y aparece en "Alertas y minutas".',
+        'Los avisos por correo y WhatsApp se registran; no se envían. El envío real se conecta junto con los sistemas reales.',
+        'Los datos de SAP y SOI no se modifican nunca.'].map((e) => h('li', {}, e))))),
+  ];
+}
+
 // ---------- aplicación ----------
 const VISTAS = [
   { id: 'direccion', t: 'Dirección', load: ['direccion', 'claude'], f: vDireccion },
   { id: 'planta', t: 'Planta', load: ['planta'], f: ([d]) => vPlanta(d) },
+  { id: 'iglu', t: 'Iglú', load: ['iglu'], f: ([d]) => vIglu(d) },
   { id: 'calidad', t: 'Calidad', load: ['calidad'], f: ([d]) => vCalidad(d) },
   { id: 'comercial', t: 'Ventas y logística', load: ['comercial'], f: ([d]) => vComercial(d) },
   { id: 'campo', t: 'Mantenimiento y campo', load: ['campo'], f: ([d]) => vCampo(d) },
   { id: 'claude', t: 'Alertas y minutas', load: ['claude'], f: ([c]) => vClaude(c) },
+  { id: 'guia', t: 'Pregúntale a Claude', load: [], f: () => vGuia() },
 ];
 const store = (() => { try { return window.sessionStorage; } catch { return null; } })();
 let code = '';

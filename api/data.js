@@ -6,6 +6,7 @@ const FUNCIONES = {
   calidad: 'demo_calidad',
   comercial: 'demo_comercial',
   campo: 'demo_operacion_campo',
+  iglu: 'demo_iglu',
   claude: 'demo_claude',
 };
 
