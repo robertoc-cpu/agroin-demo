@@ -418,7 +418,8 @@ const tabs = document.getElementById('tabs');
 function gate(msg) {
   const inp = h('input', { type: 'password', placeholder: 'Código de acceso', 'aria-label': 'Código de acceso' });
   const go = () => { code = inp.value; try { store?.setItem('accesscode', code); } catch { /* ok */ } show(current); };
-  inp.onkeydown = (e) => e.key === 'Enter' && go();
+  // Ojo: un manejador DOM0 que devuelve false cancela la tecla; por eso las llaves y el if.
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   view.replaceChildren(h('div', { class: 'gate card' }, h('h3', {}, 'Acceso a la demo'), msg && h('p', { class: 'sub' }, msg), inp, h('button', { onclick: go }, 'Entrar')));
 }
 
